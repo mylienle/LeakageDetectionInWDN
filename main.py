@@ -111,7 +111,7 @@ class LeakageDetectionModel:
         """
         if not os.path.exists(model_path):
             os.makedirs(model_path)
-        self.model.save(f'{model_path}/leakage_detection_model.h5')
+        self.model.save('{}/leakage_detection_model.h5'.format(model_path))
         
     def load(self, model_path='model/leakage_detection_model.h5'):
         """

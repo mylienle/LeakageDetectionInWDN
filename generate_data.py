@@ -67,7 +67,7 @@ def generate_water_network_data(
             # Combine factors
             pressure[j] = sensor_base + hour_factor + day_factor + noise
         
-        data[f'pressure_{i+1}'] = pressure
+        data['pressure_{}'.format(i+1)] = pressure
     
     # Generate base flow data
     base_flow = 100  # Base flow in gallons per minute
@@ -93,7 +93,7 @@ def generate_water_network_data(
             # Combine factors
             flow[j] = max(0, sensor_base + hour_factor + day_factor + noise)  # Ensure non-negative
         
-        data[f'flow_{i+1}'] = flow
+        data['flow_{}'.format(i+1)] = flow
     
     # Initialize leak status (0 = no leak, 1 = leak)
     data['leak'] = 0
@@ -111,21 +111,21 @@ def generate_water_network_data(
             for i in range(n_pressure_sensors):
                 # Different sensors are affected differently by the leak
                 effect = np.random.uniform(0.7, 0.95)  # Pressure drop effect
-                data.loc[start_idx:end_idx, f'pressure_{i+1}'] *= effect
+                data.loc[start_idx:end_idx, 'pressure_{}'.format(i+1)] *= effect
             
             for i in range(n_flow_sensors):
                 # Flow sensors downstream of leak show decreased flow,
                 # while sensors upstream might not show significant changes
                 if i < n_flow_sensors // 2:
                     effect = np.random.uniform(0.8, 0.95)  # Flow decrease
-                    data.loc[start_idx:end_idx, f'flow_{i+1}'] *= effect
+                    data.loc[start_idx:end_idx, 'flow_{}'.format(i+1)] *= effect
                 else:
                     # Add more variation to flow due to leak
-                    data.loc[start_idx:end_idx, f'flow_{i+1}'] += np.random.normal(0, 5, size=end_idx-start_idx+1)
+                    data.loc[start_idx:end_idx, 'flow_{}'.format(i+1)] += np.random.normal(0, 5, size=end_idx-start_idx+1)
     
     # Save to CSV
     data.to_csv(output_file, index=False)
-    print(f"Generated synthetic data with {n_samples} samples and saved to {output_file}")
+    print("Generated synthetic data with {} samples and saved to {}".format(n_samples, output_file))
     
     return data
 
@@ -157,7 +157,7 @@ def plot_data(data, output_dir='plots'):
     plt.title('Pressure Sensor Readings')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(f'{output_dir}/pressure_data.png')
+    plt.savefig('{}/pressure_data.png'.format(output_dir))
     
     # Plot flow data
     flow_cols = [col for col in data.columns if 'flow' in col]
@@ -174,7 +174,7 @@ def plot_data(data, output_dir='plots'):
     plt.title('Flow Sensor Readings')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(f'{output_dir}/flow_data.png')
+    plt.savefig('{}/flow_data.png'.format(output_dir))
     
     # Plot daily patterns
     plt.figure(figsize=(15, 7))
@@ -184,7 +184,7 @@ def plot_data(data, output_dir='plots'):
     plt.title('Daily Patterns')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(f'{output_dir}/daily_patterns.png')
+    plt.savefig('{}/daily_patterns.png'.format(output_dir))
 
 if __name__ == "__main__":
     # Define leak periods (start_day, end_day)

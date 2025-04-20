@@ -20,10 +20,10 @@ def load_pressure_flow_data(file_path):
     """
     try:
         data = pd.read_csv(file_path)
-        print(f"Loaded data with shape: {data.shape}")
+        print("Loaded data with shape: {}".format(data.shape))
         return data
     except Exception as e:
-        print(f"Error loading data: {e}")
+        print("Error loading data: {}".format(e))
         return None
 
 def preprocess_features(data, pressure_cols=None, flow_cols=None, time_col=None):
@@ -194,15 +194,31 @@ def create_feature_importance_plot(model, feature_names):
         # For neural networks, we'll use the weights of the first dense layer as a proxy
         if hasattr(model, 'layers'):
             weights = model.layers[0].get_weights()[0]
+            
+            # Handle case where dimensions don't match
+            if len(weights) != len(feature_names):
+                print("Warning: Model weights shape ({}) doesn't match feature names shape ({})".format(
+                    weights.shape[0], len(feature_names)))
+                
+                # Use only the number of features we have names for, or truncate feature names
+                n_features = min(len(weights), len(feature_names))
+                weights = weights[:n_features]
+                feature_names = feature_names[:n_features]
+            
             importances = np.mean(np.abs(weights), axis=1)
             
+            # Sort features by importance
+            indices = np.argsort(importances)
+            sorted_feature_names = [feature_names[i] for i in indices[-20:]]  # Top 20 features
+            sorted_importances = importances[indices[-20:]]  # Top 20 importances
+            
             # Plot feature importances
-            plt.figure(figsize=(12, 6))
-            plt.barh(feature_names, importances)
+            plt.figure(figsize=(12, 8))
+            plt.barh(sorted_feature_names, sorted_importances)
             plt.xlabel('Mean Absolute Weight')
             plt.ylabel('Feature')
-            plt.title('Feature Importance Based on First Layer Weights')
+            plt.title('Top 20 Features Importance Based on First Layer Weights')
             plt.tight_layout()
             plt.savefig('feature_importance.png')
     except Exception as e:
-        print(f"Could not create feature importance plot: {e}") 
+        print("Could not create feature importance plot: {}".format(e)) 

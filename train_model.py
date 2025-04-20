@@ -30,7 +30,7 @@ def load_and_preprocess_data(file_path, window_size=24):
     # Load data
     data = load_pressure_flow_data(file_path)
     if data is None:
-        raise ValueError(f"Failed to load data from {file_path}")
+        raise ValueError("Failed to load data from {}".format(file_path))
     
     # Preprocess features
     pressure_cols = [col for col in data.columns if 'pressure' in col]
@@ -49,7 +49,7 @@ def load_and_preprocess_data(file_path, window_size=24):
     for t in range(window_size):
         for col in data_processed.columns:
             if col not in ['leak', 'timestamp', 'hour', 'day_of_week']:
-                feature_names.append(f"{col}_t-{window_size-t}")
+                feature_names.append("{}_t-{}".format(col, window_size-t))
     
     return X_windows, y, feature_names
 
@@ -113,7 +113,10 @@ def evaluate_model(model, X_test, y_test, feature_names):
     metrics = calculate_detection_metrics(y_test, y_pred)
     print("\nDetection Metrics:")
     for metric, value in metrics.items():
-        print(f"{metric}: {value:.4f}")
+        if value is not None:
+            print("{}: {:.4f}".format(metric, value))
+        else:
+            print("{}: N/A".format(metric))
     
     # Create feature importance plot
     create_feature_importance_plot(model.model, feature_names)
@@ -135,7 +138,7 @@ def save_results(model, history, metrics, output_dir='results'):
         os.makedirs(output_dir)
     
     # Save model
-    model.save(model_path=f"{output_dir}/model")
+    model.save(model_path="{}/model".format(output_dir))
     
     # Save training history
     plt.figure(figsize=(12, 5))
@@ -155,15 +158,15 @@ def save_results(model, history, metrics, output_dir='results'):
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Validation'], loc='upper right')
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/training_history.png")
+    plt.savefig("{}/training_history.png".format(output_dir))
     
     # Save history to CSV
     history_df = pd.DataFrame(history.history)
-    history_df.to_csv(f"{output_dir}/training_history.csv")
+    history_df.to_csv("{}/training_history.csv".format(output_dir))
     
     # Save metrics
     metrics_df = pd.DataFrame([metrics])
-    metrics_df.to_csv(f"{output_dir}/evaluation_metrics.csv")
+    metrics_df.to_csv("{}/evaluation_metrics.csv".format(output_dir))
 
 def main():
     print("Leakage Detection in Water Distribution Networks")
@@ -175,7 +178,7 @@ def main():
     
     # Check if data file exists, if not generate it
     if not os.path.exists(data_file):
-        print(f"Data file {data_file} not found. Generating synthetic data...")
+        print("Data file {} not found. Generating synthetic data...".format(data_file))
         from generate_data import generate_water_network_data, plot_data
         
         # Define leak periods
@@ -203,8 +206,8 @@ def main():
     # Split data
     print("\nSplitting data into train and test sets...")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    print(f"Training set: {X_train.shape}, {y_train.shape}")
-    print(f"Test set: {X_test.shape}, {y_test.shape}")
+    print("Training set: {}, {}".format(X_train.shape, y_train.shape))
+    print("Test set: {}, {}".format(X_test.shape, y_test.shape))
     
     # Create and train model
     print("\nCreating and training model...")
