@@ -221,4 +221,48 @@ def create_feature_importance_plot(model, feature_names):
             plt.tight_layout()
             plt.savefig('feature_importance.png')
     except Exception as e:
-        print("Could not create feature importance plot: {}".format(e)) 
+        print("Could not create feature importance plot: {}".format(e))
+
+def load_duc_data(flow_file='Data_thDuc/Duc_Flow_Data.csv', pressure_file='Data_thDuc/Duc_Pressure_Data.csv'):
+    """
+    Load and preprocess Duc's real data from CSV files
+    
+    Args:
+        flow_file: Path to flow data CSV
+        pressure_file: Path to pressure data CSV
+        
+    Returns:
+        X_flow: Flow features matrix
+        X_pressure: Pressure features matrix
+        y: Labels (0 for no leak, 1-122 for leak location)
+        metadata: Dictionary with additional info
+    """
+    # Read CSVs
+    flow_data = pd.read_csv(flow_file)
+    pressure_data = pd.read_csv(pressure_file)
+    
+    # Extract features and labels
+    flow_features = flow_data.iloc[:, 3:].values  # Skip scenario, leak_rate, pattern
+    pressure_features = pressure_data.iloc[:, 3:].values
+    
+    # Create labels
+    scenarios = flow_data.iloc[:, 0]  # First column contains scenario
+    leak_rates = flow_data.iloc[:, 1]  # Second column contains leak rate
+    pattern_factors = flow_data.iloc[:, 2]  # Third column contains pattern factor
+    
+    # Convert scenarios to numeric labels
+    y = np.zeros(len(scenarios))
+    for i, scenario in enumerate(scenarios):
+        if scenario != "KO CÓ":  # If it's a leak scenario
+            node_num = int(scenario.split()[1])  # Extract node number
+            y[i] = node_num
+    
+    # Create metadata
+    metadata = {
+        'leak_rates': leak_rates.values,
+        'pattern_factors': pattern_factors.values,
+        'n_pipes': flow_features.shape[1],
+        'n_nodes': pressure_features.shape[1]
+    }
+    
+    return flow_features, pressure_features, y, metadata 

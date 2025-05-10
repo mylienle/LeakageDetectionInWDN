@@ -16,62 +16,92 @@ np.random.seed(42)
 tf.random.set_seed(42)
 
 class LeakageDetectionModel:
-    def __init__(self):
+    def __init__(self, use_flow=True, use_pressure=True):
         self.model = None
-        self.scaler = None
+        self.flow_scaler = None
+        self.pressure_scaler = None
+        self.use_flow = use_flow
+        self.use_pressure = use_pressure
         
-    def create_hybrid_model(self, input_shape, hidden_layers=[64, 32], dropout_rate=0.2):
+    def create_hybrid_model(self, n_pipes=198, n_nodes=122, n_classes=123, hidden_layers=[256, 128, 64], dropout_rate=0.2):
         """
         Create a hybrid feedforward neural network for leakage detection
-        Based on the paper's architecture
+        
+        Args:
+            n_pipes: Number of pipes (flow features)
+            n_nodes: Number of nodes (pressure features)
+            n_classes: Number of output classes (122 nodes + 1 for no leak)
+            hidden_layers: List of hidden layer sizes
+            dropout_rate: Dropout rate for regularization
         """
         model = tf.keras.Sequential()
         
-        # Input layer
-        model.add(tf.keras.layers.Input(shape=(input_shape,)))
+        # Input layer size depends on which features we use
+        input_size = 0
+        if self.use_flow:
+            input_size += n_pipes
+        if self.use_pressure:
+            input_size += n_nodes
+            
+        model.add(tf.keras.layers.Input(shape=(input_size,)))
         
         # Hidden layers
         for units in hidden_layers:
             model.add(tf.keras.layers.Dense(units, activation='relu'))
+            model.add(tf.keras.layers.BatchNormalization())
             model.add(tf.keras.layers.Dropout(dropout_rate))
             
-        # Output layer - binary classification (leak or no leak)
-        model.add(tf.keras.layers.Dense(1, activation='sigmoid'))
+        # Output layer - multi-class classification (123 classes: 122 nodes + no leak)
+        model.add(tf.keras.layers.Dense(n_classes, activation='softmax'))
         
         # Compile model
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-            loss='binary_crossentropy',
-            metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
+            loss='sparse_categorical_crossentropy',
+            metrics=['accuracy']
         )
         
         self.model = model
         return model
     
-    def preprocess_data(self, X, y=None, train=True):
+    def preprocess_data(self, X_flow=None, X_pressure=None, y=None, train=True):
         """
-        Preprocess data using standardization or normalization
-        According to the paper, the pressure and flow rate data need to be normalized
+        Preprocess flow and/or pressure data using standardization
         """
-        if train:
-            self.scaler = MinMaxScaler()
-            X_scaled = self.scaler.fit_transform(X)
-            return X_scaled, y
+        features = []
+        
+        if self.use_flow and X_flow is not None:
+            if train:
+                self.flow_scaler = StandardScaler()
+                X_flow_scaled = self.flow_scaler.fit_transform(X_flow)
+            else:
+                X_flow_scaled = self.flow_scaler.transform(X_flow)
+            features.append(X_flow_scaled)
+            
+        if self.use_pressure and X_pressure is not None:
+            if train:
+                self.pressure_scaler = StandardScaler()
+                X_pressure_scaled = self.pressure_scaler.fit_transform(X_pressure)
+            else:
+                X_pressure_scaled = self.pressure_scaler.transform(X_pressure)
+            features.append(X_pressure_scaled)
+            
+        if len(features) > 0:
+            X = np.hstack(features)
+            return X, y
         else:
-            # For validation/test data
-            X_scaled = self.scaler.transform(X)
-            return X_scaled, y
+            raise ValueError("No features provided for preprocessing")
     
-    def train(self, X, y, validation_split=0.2, epochs=100, batch_size=32):
+    def train(self, X_flow=None, X_pressure=None, y=None, validation_split=0.2, epochs=100, batch_size=32):
         """
         Train the hybrid neural network model
         """
         # Preprocess data
-        X_scaled, y = self.preprocess_data(X, y, train=True)
+        X, y = self.preprocess_data(X_flow, X_pressure, y, train=True)
         
         # Train model
         history = self.model.fit(
-            X_scaled, y,
+            X, y,
             validation_split=validation_split,
             epochs=epochs,
             batch_size=batch_size,
@@ -80,30 +110,71 @@ class LeakageDetectionModel:
         
         return history
     
-    def evaluate(self, X_test, y_test):
+    def train_with_validation_data(self, X_train, y_train, X_val, y_val, epochs=100, batch_size=32):
         """
-        Evaluate the model on test data
+        Train the hybrid neural network model using separate validation data.
+        
+        Args:
+            X_train: Preprocessed training features
+            y_train: Training labels
+            X_val: Preprocessed validation features
+            y_val: Validation labels
+            epochs: Number of training epochs
+            batch_size: Batch size for training
+            
+        Returns:
+            Training history
+        """
+        # Train model using validation_data argument
+        history = self.model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val), # Pass validation data here
+            epochs=epochs,
+            batch_size=batch_size,
+            verbose=1
+        )
+        
+        return history
+    
+    def evaluate(self, X_flow=None, X_pressure=None, y_true=None):
+        """
+        Evaluate the model on test data, compute MRLE and RMSE, and return predictions
         """
         # Preprocess test data
-        X_test_scaled, y_test = self.preprocess_data(X_test, y_test, train=False)
+        X, y_true = self.preprocess_data(X_flow, X_pressure, y_true, train=False)
         
         # Evaluate
-        results = self.model.evaluate(X_test_scaled, y_test, verbose=1)
-        y_pred = (self.model.predict(X_test_scaled) > 0.5).astype(int)
+        results = self.model.evaluate(X, y_true, verbose=1)
+        y_pred_probs = self.model.predict(X)
+        y_pred = np.argmax(y_pred_probs, axis=1)
         
-        # Generate classification report and confusion matrix
+        # RMSE: Root Mean Squared Error between predicted and true class (for leak location)
+        rmse = np.sqrt(np.mean((y_pred - y_true) ** 2))
+        print(f"\nRMSE (leak location index): {rmse:.4f}")
+        
+        # MRLE: Maximum Relative Leakage Error (for leak cases only, as in the paper)
+        # MRLE = max(|predicted - true| / n_nodes) * 100%
+        leak_mask = y_true > 0
+        if np.any(leak_mask):
+            mrle = np.max(np.abs(y_pred[leak_mask] - y_true[leak_mask]) / (np.max(y_true[leak_mask])) ) * 100
+            print(f"MRLE (for leak cases): {mrle:.2f}%")
+        else:
+            mrle = None
+            print("No leak cases in evaluation set for MRLE calculation.")
+        
+        # Classification report and confusion matrix
         print("\nClassification Report:")
-        print(classification_report(y_test, y_pred))
+        print(classification_report(y_true, y_pred, zero_division=0))
         
-        cm = confusion_matrix(y_test, y_pred)
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+        cm = confusion_matrix(y_true, y_pred)
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(cm, annot=False, fmt='d', cmap='Blues')
         plt.xlabel('Predicted')
         plt.ylabel('Actual')
         plt.title('Confusion Matrix')
         plt.savefig('confusion_matrix.png')
         
-        return results, y_pred
+        return results, y_pred, y_true
     
     def save(self, model_path='model'):
         """
@@ -195,7 +266,7 @@ def main():
     
     # Evaluate the model
     print("\nEvaluating the model...")
-    results, y_pred = model.evaluate(X_test, y_test)
+    results, y_pred, y_true = model.evaluate(X_test, y_test)
     
     # Save the model
     print("\nSaving the model...")
