@@ -221,7 +221,7 @@ def create_feature_importance_plot(model, feature_names):
             plt.tight_layout()
             plt.savefig('feature_importance.png')
     except Exception as e:
-        print("Could not create feature importance plot: {}".format(e))
+        print("Could not create feature importance plot: {}".format(e)) 
 
 def load_duc_data(flow_file='Data_thDuc/Duc_Flow_Data.csv', pressure_file='Data_thDuc/Duc_Pressure_Data.csv'):
     """

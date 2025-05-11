@@ -296,6 +296,81 @@ def plot_training_history(history, output_file='training_history.png'):
     plt.savefig(output_file)
     plt.close()
 
+def run_sensitivity_analysis_case1(X_flow, X_pressure, y, metadata, n_repeats=5, percentages=None):
+    if percentages is None:
+        percentages = [2, 4, 6, 8, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    n_pipes = metadata['n_pipes']
+    results = []
+
+    for pct in percentages:
+        n_selected = max(1, int(np.round(n_pipes * pct / 100)))
+        accs, mrles = [], []
+        print(f"\n--- Sensitivity analysis: {pct}% pipes ({n_selected} pipes) ---")
+        for repeat in range(n_repeats):
+            np.random.seed(repeat)
+            selected_pipes = np.random.choice(n_pipes, n_selected, replace=False)
+            # Prepare data for this subset
+            X_flow_sub = X_flow[:, selected_pipes]
+            # Split data
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_flow_sub, y, test_size=0.2, random_state=42, stratify=y
+            )
+            # Train model
+            model = LeakageDetectionModel(use_flow=True, use_pressure=False)
+            model.create_hybrid_model(n_pipes=n_selected, n_nodes=0, n_classes=metadata['n_nodes'] + 1,
+                                     hidden_layers=[128, 64], dropout_rate=0.3)
+            history = model.train(X_train, None, y_train, validation_split=0.2, epochs=30, batch_size=32)
+            # Evaluate
+            _, y_pred, y_true = model.evaluate(X_val, None, y_val)
+            acc = np.mean(y_pred == y_true)
+            # MRLE calculation (for leak cases only)
+            leak_mask = y_true > 0
+            if np.any(leak_mask):
+                mrle = np.max(np.abs(y_pred[leak_mask] - y_true[leak_mask]) / (np.max(y_true[leak_mask]))) * 100
+            else:
+                mrle = np.nan
+            accs.append(acc)
+            mrles.append(mrle)
+        # Store average results
+        results.append({
+            'percentage': pct,
+            'n_pipes': n_selected,
+            'accuracy_mean': np.mean(accs),
+            'accuracy_std': np.std(accs),
+            'mrle_mean': np.nanmean(mrles),
+            'mrle_std': np.nanstd(mrles)
+        })
+        print(f"  Mean accuracy: {np.mean(accs):.4f}, Mean MRLE: {np.nanmean(mrles):.2f}%")
+    # Plot
+    percentages = [r['percentage'] for r in results]
+    acc_means = [r['accuracy_mean'] for r in results]
+    acc_stds = [r['accuracy_std'] for r in results]
+    mrle_means = [r['mrle_mean'] for r in results]
+    mrle_stds = [r['mrle_std'] for r in results]
+    plt.figure(figsize=(10, 5))
+    plt.errorbar(percentages, acc_means, yerr=acc_stds, fmt='-o', label='Accuracy')
+    plt.xlabel('% of Pipes Used')
+    plt.ylabel('Accuracy')
+    plt.title('Sensitivity Analysis: Accuracy vs. % of Pipes Used')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('sensitivity_accuracy.png')
+    plt.close()
+    plt.figure(figsize=(10, 5))
+    plt.errorbar(percentages, mrle_means, yerr=mrle_stds, fmt='-o', color='red', label='MRLE')
+    plt.xlabel('% of Pipes Used')
+    plt.ylabel('MRLE (%)')
+    plt.title('Sensitivity Analysis: MRLE vs. % of Pipes Used')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('sensitivity_mrle.png')
+    plt.close()
+    # Save results as CSV
+    pd.DataFrame(results).to_csv('sensitivity_results.csv', index=False)
+    print('\nSensitivity analysis completed. Results saved to sensitivity_accuracy.png, sensitivity_mrle.png, and sensitivity_results.csv.')
+
 def main():
     print("Leakage Detection in Water Distribution Networks")
     print("Training and Evaluation using Real Data")
@@ -353,6 +428,10 @@ def main():
     # Save model
     print("\nSaving model...")
     model.save()
+    
+    # Sensitivity analysis for Case 1
+    print("\nRunning sensitivity analysis for Case 1...")
+    run_sensitivity_analysis_case1(X_flow, X_pressure, y, metadata, n_repeats=3)
     
     print("\nTraining completed.")
 
