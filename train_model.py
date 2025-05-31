@@ -9,6 +9,7 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+import joblib
 
 from data_utils import load_pressure_flow_data, preprocess_features, extract_features_for_detection
 from data_utils import calculate_detection_metrics, plot_detection_results, create_feature_importance_plot, load_duc_data
@@ -428,6 +429,11 @@ def main():
     # Save model
     print("\nSaving model...")
     model.save()
+    # Save scalers
+    if hasattr(model, 'flow_scaler') and model.flow_scaler is not None:
+        joblib.dump(model.flow_scaler, 'model/flow_scaler.save')
+    if hasattr(model, 'pressure_scaler') and model.pressure_scaler is not None:
+        joblib.dump(model.pressure_scaler, 'model/pressure_scaler.save')
     
     # Sensitivity analysis for Case 1
     print("\nRunning sensitivity analysis for Case 1...")

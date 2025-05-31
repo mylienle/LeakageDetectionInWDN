@@ -230,6 +230,7 @@ def load_duc_data(flow_file='Data_thDuc/Duc_Flow_Data.csv', pressure_file='Data_
     Args:
         flow_file: Path to flow data CSV
         pressure_file: Path to pressure data CSV
+        encoding: File encoding to use when reading CSV files
         
     Returns:
         X_flow: Flow features matrix
@@ -238,8 +239,8 @@ def load_duc_data(flow_file='Data_thDuc/Duc_Flow_Data.csv', pressure_file='Data_
         metadata: Dictionary with additional info
     """
     # Read CSVs
-    flow_data = pd.read_csv(flow_file)
-    pressure_data = pd.read_csv(pressure_file)
+    flow_data = pd.read_csv(flow_file, encoding=encoding)
+    pressure_data = pd.read_csv(pressure_file, encoding=encoding)
     
     # Extract features and labels
     flow_features = flow_data.iloc[:, 3:].values  # Skip scenario, leak_rate, pattern
