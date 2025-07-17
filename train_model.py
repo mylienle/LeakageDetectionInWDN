@@ -9,11 +9,14 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-import joblib
+from data_utils import load_duc_data
+from main import LeakageDetectionModel
+from sklearn.metrics import accuracy_score, mean_squared_error
+import math
 
 from data_utils import load_pressure_flow_data, preprocess_features, extract_features_for_detection
-from data_utils import calculate_detection_metrics, plot_detection_results, create_feature_importance_plot, load_duc_data
-from main import LeakageDetectionModel
+from data_utils import calculate_detection_metrics, plot_detection_results, create_feature_importance_plot
+import joblib
 
 def load_and_preprocess_real_data(file_path='real_water_network_data.csv', window_size=12):
     """
@@ -372,13 +375,16 @@ def run_sensitivity_analysis_case1(X_flow, X_pressure, y, metadata, n_repeats=5,
     pd.DataFrame(results).to_csv('sensitivity_results.csv', index=False)
     print('\nSensitivity analysis completed. Results saved to sensitivity_accuracy.png, sensitivity_mrle.png, and sensitivity_results.csv.')
 
+
+def calculate_mrle(y_true, y_pred):
+    """
+    Calculate Mean Relative Leakage Error (MRLE)
+    """
+    return np.mean(np.abs((y_true - y_pred) / y_true))
+
 def main():
-    print("Leakage Detection in Water Distribution Networks")
-    print("Training and Evaluation using Real Data")
-    print("-" * 60)
-    
-    # Load real data
-    print("\nLoading real data...")
+    # Load data
+    print("Loading combined data from Data_thDuc/df_filltered.csv...")
     X_flow, X_pressure, y, metadata = load_duc_data()
     
     print(f"Loaded data:")
